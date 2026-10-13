@@ -46,12 +46,26 @@ pipeline {
         }
 
         stage('Deploy') {
-           
-            steps {
-                echo "Deploying artifact stored at: ${ARTIFACT_PATH} to environment: ${params.DEPLOY_ENV}"
-                sh "echo 'Deployment simulation complete for ${params.DEPLOY_ENV}'"
+        steps {
+            dir('app') {
+                echo "Building Docker image..."
+                sh "docker build -t demo-cicd:latest ."
+                
+                echo "Restarting application container..."
+                sh "docker stop demo-app || true"
+                sh "docker rm demo-app || true"
+                sh '''
+                    docker run -d --name demo-app \
+                    --network my-cicd-lab_lab-net \
+                    -p 8090:8090 \
+                    -e DB_HOST=mysql \
+                    -e DB_USER=${DB_USER} \
+                    -e DB_PASSWORD=${DB_PASSWORD} \
+                    demo-cicd:latest
+                '''
             }
         }
+    }
     }
 
     post {
