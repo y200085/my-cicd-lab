@@ -58,7 +58,7 @@ pipeline {
                     sh '''
                         docker run -d --name demo-app \
                         --network my-cicd-lab_lab-net \
-                        -p 8090:8090 \
+                        -p 8094:8090 \
                         -e DB_HOST=mysql \
                         -e DB_USER=${DB_USER} \
                         -e DB_PASSWORD=${DB_PASSWORD} \
