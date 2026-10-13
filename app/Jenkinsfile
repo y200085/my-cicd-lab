@@ -1,0 +1,70 @@
+pipeline {
+    agent any
+
+    environment {
+        APP_NAME = 'demo-cicd'
+        ARTIFACT_PATH = 'app/target/${APP_NAME}-0.0.1-SNAPSHOT.jar'
+        DB_HOST = 'mysql'
+        DB_NAME = 'labdb'
+        // Read directly from container environment (No password stored in Jenkins)
+        DB_USER = "${env.DB_USER}"
+        DB_PASSWORD = "${env.DB_PASSWORD}"
+    }
+
+    parameters {
+        booleanParam(name: 'RUN_TESTS', defaultValue: true, description: 'Run test suite during pipeline')
+        choice(name: 'DEPLOY_ENV', choices: ['staging', 'production'], description: 'Target deployment environment')
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                echo "Checking out code from Git..."
+                checkout scm
+            }
+        }
+
+        stage('Build') {
+            steps {
+                dir('app') {
+                    echo "Building Java application with Maven..."
+                    sh 'mvn clean package -DskipTests'
+                }
+            }
+        }
+
+        stage('Test') {
+            when {
+                expression { params.RUN_TESTS == true }
+            }
+            steps {
+                dir('app') {
+                    echo "Running tests against database at ${DB_HOST}..."
+                    sh 'mvn test'
+                }
+            }
+        }
+
+        stage('Deploy') {
+            when {
+                anyOf {
+                    branch 'main'
+                    branch 'master'
+                }
+            }
+            steps {
+                echo "Deploying artifact stored at: ${ARTIFACT_PATH} to environment: ${params.DEPLOY_ENV}"
+                sh "echo 'Deployment simulation complete for ${params.DEPLOY_ENV}'"
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Pipeline executed successfully!'
+        }
+        failure {
+            echo 'Pipeline execution failed.'
+        }
+    }
+}

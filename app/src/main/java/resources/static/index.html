@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>CI/CD Lab - Task Manager</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; background: #f4f4f9; }
+        .container { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); max-width: 600px; }
+        ul { list-style: none; padding: 0; }
+        li { padding: 10px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; }
+        button { background: #e74c3c; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 4px; }
+        input { padding: 8px; width: 70%; margin-right: 10px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Task Manager (CI/CD Lab)</h1>
+    <div>
+        <input type="text" id="taskTitle" placeholder="New task title...">
+        <button onclick="addTask()" style="background: #2ecc71;">Add Task</button>
+    </div>
+    <ul id="taskList"></ul>
+</div>
+<script>
+    async function fetchTasks() {
+        const res = await fetch('/api/tasks');
+        const tasks = await res.json();
+        const list = document.getElementById('taskList');
+        list.innerHTML = '';
+        tasks.forEach(t => {
+            list.innerHTML += `<li>${t.title} (${t.status}) <button onclick="deleteTask(${t.id})">Delete</button></li>`;
+        });
+    }
+    async function addTask() {
+        const title = document.getElementById('taskTitle').value;
+        if (!title) return;
+        await fetch('/api/tasks', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({title, status: 'PENDING'}) });
+        document.getElementById('taskTitle').value = '';
+        fetchTasks();
+    }
+    async function deleteTask(id) { await fetch(`/api/tasks/${id}`, {method: 'DELETE'}); fetchTasks(); }
+    fetchTasks();
+</script>
+</body>
+</html>
