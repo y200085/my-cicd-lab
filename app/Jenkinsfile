@@ -46,12 +46,7 @@ pipeline {
         }
 
         stage('Deploy') {
-            when {
-                anyOf {
-                    branch 'main'
-                    branch 'master'
-                }
-            }
+           
             steps {
                 echo "Deploying artifact stored at: ${ARTIFACT_PATH} to environment: ${params.DEPLOY_ENV}"
                 sh "echo 'Deployment simulation complete for ${params.DEPLOY_ENV}'"
