@@ -45,24 +45,46 @@ pipeline {
         }
 
  
-
+        
 stage('Deploy') {
-        steps {
-            echo "Deploying application via Docker Compose..."
-            sh 'docker compose down -v' 
-            sh 'docker compose up -d --build app'
-            
-            echo "Injecting init.sql into the database..."
-            // 1. Copy the file into the container
-            sh "docker cp init.sql mysql-lab:/tmp/init.sql"
-            
-            // 2. Open a shell INSIDE the container to execute the file
-            sh "docker exec mysql-lab sh -c 'mysql -uroot -p${env.DB_ROOT_PASSWORD} labdb < /tmp/init.sql'"
-            
-            echo "Deployment complete! Application is running at http://localhost:8090"
-        }
-    }
+    steps {
+        echo "Deploying to ${params.DEPLOY_ENV}..."
 
+        sh '''
+            set -eu
+
+            docker compose up -d --build mysql app
+
+            # Wait for MySQL to become ready
+            attempt=0
+            until docker compose exec -T mysql \
+                mysqladmin ping -h 127.0.0.1 \
+                -uroot -p"$DB_ROOT_PASSWORD" --silent
+            do
+                attempt=$((attempt + 1))
+                if [ "$attempt" -ge 30 ]; then
+                    echo "MySQL did not become ready."
+                    docker compose logs mysql
+                    exit 1
+                fi
+                sleep 2
+            done
+
+            # Copy SQL file into the MySQL container
+            docker compose cp init.sql mysql:/tmp/init.sql
+
+            # Run init.sql using TCP
+            docker compose exec -T mysql sh -c \
+                'mysql --protocol=TCP -h 127.0.0.1 \
+                -uroot -p"$DB_ROOT_PASSWORD" labdb \
+                -e "source /tmp/init.sql"'
+
+            echo "Database initialization completed."
+        '''
+
+        echo 'Deployment commands completed.'
+    }
+}
  }
 
     post {
