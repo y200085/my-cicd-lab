@@ -44,15 +44,16 @@ pipeline {
         }
 
         stage('Deploy') {
-            steps {
-                echo "Deploying application via Docker Compose..."
-                
-                // Uses your docker-compose.yml to build and start the app container
-                sh "docker compose up -d --build app"
-                
-                echo "Deployment complete! Application is running at http://localhost:8090"
-            }
-        }
+        steps {
+            echo "Deploying application via Docker Compose..."
+            
+            // This line is critical to wipe the broken database state!
+            sh 'docker compose down -v' 
+            
+            sh "docker compose up -d --build app"
+            echo "Deployment complete! Application is running at http://localhost:8090"
+			}
+		}
     }
 
     post {
