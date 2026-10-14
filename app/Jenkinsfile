@@ -46,14 +46,15 @@ pipeline {
         stage('Deploy') {
         steps {
             echo "Deploying application via Docker Compose..."
-            
-            // This line is critical to wipe the broken database state!
             sh 'docker compose down -v' 
+            sh 'docker compose up -d --build app'
             
-            sh "docker compose up -d --build app"
+            echo "Injecting init.sql into the database..."
+            sh 'docker exec -i mysql-lab mysql -uroot -p${DB_ROOT_PASSWORD} labdb < init.sql'
+            
             echo "Deployment complete! Application is running at http://localhost:8090"
-			}
-		}
+        }
+    }
     }
 
     post {
