@@ -2,17 +2,15 @@
 pipeline {
     agent any
 
-    environment {
-        APP_NAME = 'demo-cicd'
-        DB_HOST  = 'mysql'
-        DB_NAME  = 'labdb'
+    options {
+        skipDefaultCheckout(true)
     }
 
     parameters {
         booleanParam(
             name: 'RUN_TESTS',
             defaultValue: true,
-            description: 'Run the Maven test suite'
+            description: 'Run Maven tests before deployment'
         )
 
         choice(
@@ -25,35 +23,24 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                echo 'Checking out source code...'
                 checkout scm
+                echo 'Source code checked out.'
             }
         }
 
-        stage('Validate Configuration') {
+        stage('Validate') {
             steps {
                 sh '''
                     set -eu
+                    test -f .env
+                    test -f docker-compose.yml
+                    test -f init.sql
+                    test -f app/pom.xml
+                    test -f app/Dockerfile
 
-                    test -f .env || {
-                        echo "ERROR: .env file is missing from the workspace."
-                        exit 1
-                    }
-
-                    test -f docker-compose.yml || test -f compose.yaml || {
-                        echo "ERROR: Docker Compose file not found."
-                        exit 1
-                    }
-
-                    test -f init.sql || {
-                        echo "ERROR: init.sql is missing from the workspace."
-                        exit 1
-                    }
-
-                    test -f app/pom.xml || {
-                        echo "ERROR: app/pom.xml is missing."
-                        exit 1
-                    }
+                    docker --version
+                    docker compose version
+                    mvn -version
                 '''
             }
         }
@@ -61,7 +48,6 @@ pipeline {
         stage('Build') {
             steps {
                 dir('app') {
-                    echo 'Building Java application with Maven...'
                     sh 'mvn -B clean package -DskipTests'
                 }
             }
@@ -73,8 +59,13 @@ pipeline {
             }
             steps {
                 dir('app') {
-                    echo 'Running Maven tests...'
                     sh 'mvn -B test'
+                }
+            }
+            post {
+                always {
+                    junit testResults: 'app/target/surefire-reports/*.xml',
+                          allowEmptyResults: true
                 }
             }
         }
@@ -84,7 +75,7 @@ pipeline {
                 script {
                     if (params.DEPLOY_ENV == 'production') {
                         error(
-                            'Production deployment is disabled until a separate production configuration and credentials are configured.'
+                            'Production deployment is disabled. Configure a separate production target and credentials first.'
                         )
                     }
                 }
@@ -94,66 +85,63 @@ pipeline {
                 sh '''
                     set -eu
 
-                    # Load the existing local environment configuration.
+                    # Load existing credentials from .env.
                     set -a
                     . ./.env
                     set +a
 
-                    # Validate required password.
-                    if [ -z "${DB_ROOT_PASSWORD:-}" ]; then
-                        echo "ERROR: DB_ROOT_PASSWORD is missing from .env."
-                        exit 1
-                    fi
+                    : "${DB_ROOT_PASSWORD:?DB_ROOT_PASSWORD is required}"
+                    : "${DB_NAME:?DB_NAME is required}"
 
-                    # Start MySQL and the application without deleting volumes.
+                    # Start/update services without deleting database volumes.
                     docker compose up -d --build mysql app
 
-                    # Wait for MySQL to become available.
+                    # Wait for MySQL to be ready.
                     attempt=0
-
                     until docker compose exec -T \
                         -e MYSQL_PWD="$DB_ROOT_PASSWORD" \
                         mysql mysqladmin ping \
                         -h 127.0.0.1 -uroot --silent
                     do
                         attempt=$((attempt + 1))
-
                         if [ "$attempt" -ge 30 ]; then
-                            echo "ERROR: MySQL did not become ready."
+                            echo "MySQL failed to become ready."
                             docker compose logs mysql
                             exit 1
                         fi
-
                         sleep 2
                     done
 
-                    # Copy the database initialization script.
+                    # Copy SQL into the MySQL container.
                     docker compose cp init.sql mysql:/tmp/init.sql
 
-                    # Execute SQL using TCP and pass the password to the container.
+                    # Execute initialization script using TCP.
                     docker compose exec -T \
                         -e MYSQL_PWD="$DB_ROOT_PASSWORD" \
                         mysql mysql \
                         --protocol=TCP \
                         -h 127.0.0.1 \
                         -uroot \
-                        labdb \
+                        "$DB_NAME" \
                         -e "source /tmp/init.sql"
 
                     echo "Database initialization completed."
 
-                    # Verify that the application responds.
-                    # Change this URL if your application uses a different port/path.
-                    sleep 5
+                    # Verify the app through Docker Desktop's published port.
+                    attempt=0
+                    until curl --fail --silent \
+                        http://host.docker.internal:8090/ >/dev/null
+                    do
+                        attempt=$((attempt + 1))
+                        if [ "$attempt" -ge 15 ]; then
+                            echo "Application health check failed."
+                            docker compose logs app
+                            exit 1
+                        fi
+                        sleep 2
+                    done
 
-                    if ! curl --fail --silent --show-error \
-                        http://localhost:8090/ > /dev/null; then
-                        echo "ERROR: Application health check failed."
-                        docker compose logs app
-                        exit 1
-                    fi
-
-                    echo "Staging deployment and health check completed."
+                    echo "Staging deployment and smoke check passed."
                 '''
             }
         }
@@ -163,11 +151,9 @@ pipeline {
         success {
             echo 'Pipeline executed successfully!'
         }
-
         failure {
             echo 'Pipeline execution failed. Check the stage logs.'
         }
-
         always {
             echo 'Pipeline finished.'
         }
