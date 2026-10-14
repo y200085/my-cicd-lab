@@ -53,11 +53,11 @@ stage('Deploy') {
             sh 'docker compose up -d --build app'
             
             echo "Injecting init.sql into the database..."
-            // 1. Copy the file from Jenkins into the MySQL container's temporary folder
+            // 1. Copy the file into the container
             sh "docker cp init.sql mysql-lab:/tmp/init.sql"
             
-            // 2. Tell MySQL to execute the file from inside the container (no -i or < needed)
-            sh "docker exec mysql-lab mysql -uroot -p${env.DB_ROOT_PASSWORD} labdb -e 'source /tmp/init.sql'"
+            // 2. Open a shell INSIDE the container to execute the file
+            sh "docker exec mysql-lab sh -c 'mysql -uroot -p${env.DB_ROOT_PASSWORD} labdb < /tmp/init.sql'"
             
             echo "Deployment complete! Application is running at http://localhost:8090"
         }
