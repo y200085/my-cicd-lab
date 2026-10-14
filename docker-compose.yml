@@ -1,5 +1,5 @@
 services:
-  mysql:
+mysql:
     image: mysql:8.0
     container_name: mysql-lab
     environment:
@@ -11,8 +11,14 @@ services:
       - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - lab-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   app:
     build: ./app
@@ -26,10 +32,11 @@ services:
       - SERVER_PORT=8090
       - SPRING_JPA_HIBERNATE_DDL_AUTO=update
     depends_on:
-      - mysql
+      mysql:
+        condition: service_healthy
     networks:
       - lab-net
-
+      
   jenkins:
     image: jenkins/jenkins:lts
     container_name: jenkins-lab
