@@ -16,30 +16,18 @@ services:
     networks:
       - lab-net
 
-  app:
+ app:
     build: ./app
     container_name: spring-app-lab
     ports:
       - "8090:8090"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/labdb?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      - SPRING_DATASOURCE_USERNAME=labuser
+      - SPRING_DATASOURCE_PASSWORD=labpassword
+      - SERVER_PORT=8090
     depends_on:
       - mysql
-    networks:
-      - lab-net
-
-  jenkins:
-    image: jenkins/jenkins:lts
-    container_name: jenkins-lab
-    user: root
-    ports:
-      - "8080:8080"
-      - "50000:50000"
-    environment:
-      - DOCKER_HOST=unix:///var/run/docker.sock
-      - DB_USER=${DB_USER}
-      - DB_PASSWORD=${DB_PASSWORD}
-    volumes:
-      - jenkins_home:/var/jenkins_home
-      - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - lab-net
 
