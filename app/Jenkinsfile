@@ -2,12 +2,13 @@ pipeline {
     agent any
 
     environment {
-        APP_NAME = 'demo-cicd'
-        DB_HOST = 'mysql'
-        DB_NAME = 'labdb'
-        DB_USER = "${env.DB_USER}"
-        DB_PASSWORD = "${env.DB_PASSWORD}"
-    }
+		APP_NAME = 'demo-cicd'
+		DB_HOST = 'mysql'
+		DB_NAME = 'labdb'
+		DB_USER = "${env.DB_USER}"
+		DB_PASSWORD = "${env.DB_PASSWORD}"
+		DB_ROOT_PASSWORD = 'labrootpassword'
+	}
 
     parameters {
         booleanParam(name: 'RUN_TESTS', defaultValue: true, description: 'Run test suite during pipeline')
@@ -49,7 +50,7 @@ pipeline {
             sh 'docker compose down -v' 
             sh 'docker compose up -d --build app'
             
-			echo "Injecting init.sql into the database..."	
+			echo "Injecting init.sql into the database..."
             sh "docker exec -i mysql-lab mysql -uroot -p${env.DB_ROOT_PASSWORD} labdb < init.sql"
             
             echo "Deployment complete! Application is running at http://localhost:8090"
