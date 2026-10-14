@@ -15,7 +15,17 @@ services:
       - mysql_data:/var/lib/mysql
     networks:
       - lab-net
-      
+
+  app:
+    build: ./app
+    container_name: spring-app-lab
+    ports:
+      - "8090:8090"
+    depends_on:
+      - mysql
+    networks:
+      - lab-net
+
   jenkins:
     image: jenkins/jenkins:lts
     container_name: jenkins-lab
