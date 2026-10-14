@@ -1,5 +1,5 @@
 services:
-mysql:
+  mysql:
     image: mysql:8.0
     container_name: mysql-lab
     environment:
@@ -36,7 +36,7 @@ mysql:
         condition: service_healthy
     networks:
       - lab-net
-      
+
   jenkins:
     image: jenkins/jenkins:lts
     container_name: jenkins-lab
@@ -48,6 +48,7 @@ mysql:
       - DOCKER_HOST=unix:///var/run/docker.sock
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
+      - DB_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
     volumes:
       - jenkins_home:/var/jenkins_home
       - /var/run/docker.sock:/var/run/docker.sock
